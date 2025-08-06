@@ -3,6 +3,12 @@ import math
 import os
 import sys
 
+import logging
+logging.basicConfig(
+    filename='game_output.log',
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 # try catch for failure on no evnironment variable NEW_RELIC_CONFIG_FILE
 try:
     if os.getenv('NEW_RELIC_CONFIG_FILE') is None:
@@ -10,6 +16,7 @@ try:
         raise Exception("No NEW_RELIC_CONFIG_FILE environment variable found. Not starting the game.")
     else:
         print("Starting New Relic agent.")
+        logging.info("game started")
         newrelic.agent.initialize() #This is required! [RLF]
 except Exception as error:
     print(error)
@@ -221,6 +228,13 @@ def main():
         ##Init a player
         GamePlayer = Player()
 
+        # [NR] Record custom event: GameStarted
+        newrelic.agent.record_custom_event(
+            "GameStarted",
+            {"player_name": "Omshree"},
+            application=application
+        )
+
         ##Init level and spawner
         current_level_number = 1
         current_spawner_id = 0
@@ -281,6 +295,20 @@ def main():
                             newrelic.agent.record_custom_event(event_type, params, application=application)
                         # use something from the inventory
                         elif event.key in inv_keys:
+                            # [NR] Record custom event: CollectedItem (placeholder — insert where actual item pickup logic exists)
+                            try:
+                                newrelic.agent.record_custom_event(
+                                    "CollectedItem",
+                                    {
+                                        "item.id": "sample_id",
+                                        "item.type": "sample_type",
+                                        "item.score": 100
+                                    },
+                                    application=application
+                                )
+                            except Exception as e:
+                                print("[NR] Failed to record CollectedItem:", e)
+
                             if GamePlayer.inventoryInput(inv_keys.index(event.key)) and not friendly_shot:
                                 friendly_shot = Level.spawnFriendlyFire(GamePlayer.getSpriteDirection())
                                 friendly_shot_x, friendly_shot_y = player_position_x + GamePlayer.getDirectionX().value * WIDTH_OF_MAP_NODE, player_position_y
@@ -310,6 +338,16 @@ def main():
                     break;
                 # if the player died, spawn death puff and respawn player (if he has enough lives)
                 elif GamePlayer.getCurrentState() == STATE.DESTROY:
+                    # [NR] Record custom event: PlayerDied
+                    newrelic.agent.record_custom_event(
+                        "PlayerDied",
+                        {
+                            "current_level": current_level_number,
+                            "player_score": GamePlayer.score,
+                            "lives_left": GamePlayer.lives
+                        },
+                        application=application
+                    )
                     if death_timer == -1:
                         GamePlayer.takeLife()
                         DeathPuff = AnimatedTile("explosion", 0)
